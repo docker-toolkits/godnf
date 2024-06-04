@@ -191,6 +191,7 @@ func getRequirePkgname(requires *[]queryRes, dbpath string) (res []ReqRes, err e
 		// Not found in current db, record it
 		if lastestName == "" {
 			notfound = append(notfound, req)
+			continue
 		}
 
 		//fmt.Printf("Name: %s | %s | %s | %s\n", lastestName, max_epoch, max_version, max_release)

@@ -6,6 +6,7 @@ import (
 	"github/luochenglcs/godnf/repodata"
 	"github/luochenglcs/godnf/source"
 	sqlquery "github/luochenglcs/godnf/source/sqlite"
+	"os"
 	"strings"
 )
 
@@ -60,4 +61,6 @@ func main() {
 		}
 	}
 
+	// clean cache
+	os.RemoveAll("/var/cache/godnf/")
 }
