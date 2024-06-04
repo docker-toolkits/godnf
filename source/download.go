@@ -3,10 +3,14 @@ package source
 import (
 	"compress/bzip2"
 	"fmt"
+	"github/luochenglcs/godnf/repodata"
 	sqlquery "github/luochenglcs/godnf/source/sqlite"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 func decompressBZ2(src, dst string) error {
@@ -95,33 +99,51 @@ func Download(url, dst string) error {
 	return nil
 }
 
-func GetSql(url string) error {
-	err := Download(url, "/var/cache/godnf/BaseOS/baseos-primary.sqlite.bz2")
+func GetSql(url string, dst string) error {
+	fmt.Println("GetSql ", url, " ", dst)
+	// Create the target directory
+	if dirName := filepath.Dir(dst); dirName != "" {
+		if err := os.MkdirAll(dirName, 0o755); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	err := Download(url, dst)
 	if err != nil {
-		fmt.Println("ERROR download failed ", url, " /var/cache/godnf/BaseOS/baseos-primary.sqlite.bz2")
+		fmt.Println("ERROR download failed ", url, " ", dst)
 		return err
 	}
 
-	err = decompressBZ2("/var/cache/godnf/BaseOS/baseos-primary.sqlite.bz2", "/var/cache/godnf/BaseOS/baseos-primary.sqlite")
+	err = decompressBZ2(dst, dst[:len(dst)-4])
 	if err != nil {
 		fmt.Println("ERROR decompressBZ2 failed")
 		return err
 	}
 
-	os.Remove("/var/cache/godnf/BaseOS/baseos-primary.sqlite.bz2")
+	os.Remove(dst)
 	return nil
 }
 
-func GetRpm(baseurl string, r []sqlquery.ReqRes) error {
+func GetRpm(repoConfs map[string]repodata.RepoConfig, r []sqlquery.ReqRes) error {
 	for _, pack := range r {
 		var packfile string
+		parts := strings.Split(pack.DbPath, "/")
+		repoKey := parts[4]
 		if pack.Epoch == "" {
 			packfile = fmt.Sprintf("%s-%s-%s.%s.rpm", pack.Name, pack.Version, pack.Release, pack.Arch)
 		} else {
 			packfile = fmt.Sprintf("%s-%s:%s-%s.%s.rpm", pack.Name, pack.Epoch, pack.Version, pack.Release, pack.Arch)
 		}
-		downurl := fmt.Sprintf("%s/%s", baseurl, packfile)
-		dest := fmt.Sprintf("%s/%s", "/var/cache/godnf/BaseOS/packages/", packfile)
+
+		downurl := fmt.Sprintf("%s/%s", repoConfs[repoKey].BaseURL, packfile)
+		dstPath := fmt.Sprintf("%s/%s/%s", "/var/cache/godnf/", repoKey, "packages")
+
+		if err := os.MkdirAll(dstPath, 0o755); err != nil {
+			log.Fatal(err)
+		}
+
+		dest := fmt.Sprintf("%s/%s", dstPath, packfile)
+
 		fmt.Println(downurl, " ", dest)
 		err := Download(downurl, dest)
 		if err != nil {

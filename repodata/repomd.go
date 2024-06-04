@@ -12,11 +12,21 @@ import (
 	"github.com/oneumyvakin/rpmeta"
 )
 
-func GetMetadata(url string) error {
+var archMap = map[string]string{
+	"amd64":   "x86_64",
+	"386":     "x86",
+	"arm64":   "aarch64",
+	"arm":     "arm",
+	"ppc64":   "ppc64",
+	"ppc64le": "ppc64le",
+	"s390x":   "s390x",
+}
+
+func GetMetadata(url string) (map[string]rpmeta.RepoMdData, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		fmt.Println("ERROR")
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
@@ -27,7 +37,7 @@ func GetMetadata(url string) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error:", err)
-		return err
+		return nil, err
 	}
 
 	htmlContent := string(body)
@@ -59,5 +69,5 @@ func GetMetadata(url string) error {
 		fmt.Printf("OpenSize: %s\n", data.OpenSize)
 	}
 
-	return nil
+	return repomds, nil
 }
