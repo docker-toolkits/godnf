@@ -1,1 +1,1 @@
-go build -mod=vendor -o godnf ./cmd/godnf
+go build -mod=vendor -ldflags="-s -w" -o godnf ./cmd/godnf
