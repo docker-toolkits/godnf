@@ -15,6 +15,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github/luochenglcs/godnf/dnflog"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -313,7 +315,7 @@ func GetRequres(in string, dbpaths []string) ([]ReqRes, ReqRes, error) {
 		tmp, _ := getRequirePkgname(&reqinfo, db)
 		if len(tmp) != 0 {
 			for _, item := range tmp {
-				fmt.Printf("out >> %s-%s-%s.%s\n", item.Name, item.Version, item.Release, item.Arch)
+				dnflog.L.Debug("out >> %s-%s-%s.%s\n", item.Name, item.Version, item.Release, item.Arch)
 			}
 			res = append(res, tmp[:]...)
 		}
@@ -321,19 +323,19 @@ func GetRequres(in string, dbpaths []string) ([]ReqRes, ReqRes, error) {
 
 	/* if reqinfo != 0, mean have requires pkg not found in db */
 	if len(reqinfo) != 0 {
-		fmt.Println("Not Such Package ", reqinfo)
+		dnflog.L.Error("Not Such Package ", reqinfo)
 		return nil, ReqRes{}, fmt.Errorf("Not Such Package ", reqinfo)
 	}
 
-	fmt.Printf("---->%s %v<------\n", in, cur)
+	dnflog.L.Debug("---->%s %v<------\n", in, cur)
 	for _, pack := range res {
 		if pack.Epoch == "" {
-			fmt.Printf("%s-%s-%s.%s\n", pack.Name, pack.Version, pack.Release, pack.Arch)
+			dnflog.L.Debug("%s-%s-%s.%s\n", pack.Name, pack.Version, pack.Release, pack.Arch)
 		} else {
-			fmt.Printf("%s-%s:%s-%s.%s\n", pack.Name, pack.Epoch, pack.Version, pack.Release, pack.Arch)
+			dnflog.L.Debug("%s-%s:%s-%s.%s\n", pack.Name, pack.Epoch, pack.Version, pack.Release, pack.Arch)
 		}
 	}
-	fmt.Printf("---->%s<------\n", in)
+	dnflog.L.Debug("---->%s<------\n", in)
 
 	return res, cur, nil
 }

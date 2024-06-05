@@ -3,6 +3,7 @@ package repodata
 import (
 	"bufio"
 	"fmt"
+	"github/luochenglcs/godnf/dnflog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -22,7 +23,7 @@ type RepoConfig struct {
 func getVerAndArch() (release, arch string) {
 	file, err := os.Open("/etc/os-release")
 	if err != nil {
-		fmt.Printf("Error opening file: %v\n", err)
+		dnflog.L.Error("Error opening file: %v\n", err)
 		return
 	}
 	defer file.Close()
@@ -38,10 +39,10 @@ func getVerAndArch() (release, arch string) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
+		dnflog.L.Error("Error reading file: %v\n", err)
 		return
 	}
-	fmt.Println(versionID)
+	dnflog.L.Debug(versionID)
 	return versionID, archMap[runtime.GOARCH]
 }
 
@@ -52,13 +53,13 @@ func GetRepo() (map[string]RepoConfig, error) {
 	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		// Load the .repo file
 		if err != nil {
-			fmt.Printf("error file %q: %v\n", path, err)
+			dnflog.L.Error("error file %q: %v\n", path, err)
 			return err
 		}
 		if info.IsDir() || filepath.Ext(path) != ".repo" {
 			return nil
 		}
-		fmt.Println(path)
+		dnflog.L.Debug(path)
 		cfg, err := ini.Load(path)
 		if err != nil {
 			return nil
@@ -88,12 +89,13 @@ func GetRepo() (map[string]RepoConfig, error) {
 	})
 
 	for key, rc := range repoConfigs {
-		if rc.Enabled == true {
-			fmt.Println("key: ", key)
-			fmt.Println("name: ", rc.Name)
-			fmt.Println("BaseURL: ", rc.BaseURL)
-			fmt.Println("Enabled: ", rc.Enabled)
-			fmt.Println("GPGCheck: ", rc.GPGCheck)
+		if rc.Enabled {
+			fmt.Printf("reponame:%s url:%s\n", key, rc.BaseURL)
+			dnflog.L.Debug("key: ", key)
+			dnflog.L.Debug("name: ", rc.Name)
+			dnflog.L.Debug("BaseURL: ", rc.BaseURL)
+			dnflog.L.Debug("Enabled: ", rc.Enabled)
+			dnflog.L.Debug("GPGCheck: ", rc.GPGCheck)
 		}
 	}
 

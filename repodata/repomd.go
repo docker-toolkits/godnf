@@ -5,6 +5,7 @@ package repodata
 import (
 	"encoding/xml"
 	"fmt"
+	"github/luochenglcs/godnf/dnflog"
 	"io"
 	"net/http"
 	"strings"
@@ -58,15 +59,15 @@ func GetMetadata(url string) (map[string]rpmeta.RepoMdData, error) {
 		repomds[data.Type] = data
 	}
 
-	fmt.Printf("Revision :%s\n", r.Revision)
+	dnflog.L.Debug("Revision :%s\n", r.Revision)
 	for key, data := range repomds {
-		fmt.Printf("Type :%s\n", key)
-		fmt.Printf("Checksum: %s %s\n", data.Checksum.Type, data.Checksum.Value)
-		fmt.Printf("OpenChecksum: %s %s\n", data.OpenChecksum.Type, data.OpenChecksum.Value)
-		fmt.Printf("Location: %s\n", data.Location.Href)
-		fmt.Printf("TimeStamp: %s\n", data.Timestamp)
-		fmt.Printf("Size: %s\n", data.Size)
-		fmt.Printf("OpenSize: %s\n", data.OpenSize)
+		dnflog.L.Debug("Type :%s\n", key)
+		dnflog.L.Debug("Checksum: %s %s\n", data.Checksum.Type, data.Checksum.Value)
+		dnflog.L.Debug("OpenChecksum: %s %s\n", data.OpenChecksum.Type, data.OpenChecksum.Value)
+		dnflog.L.Debug("Location: %s\n", data.Location.Href)
+		dnflog.L.Debug("TimeStamp: %s\n", data.Timestamp)
+		dnflog.L.Debug("Size: %s\n", data.Size)
+		dnflog.L.Debug("OpenSize: %s\n", data.OpenSize)
 	}
 
 	return repomds, nil

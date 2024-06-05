@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github/luochenglcs/godnf/dnflog"
 	sqlquery "github/luochenglcs/godnf/source/sqlite"
 
 	"github.com/cavaliergopher/cpio"
@@ -65,23 +66,23 @@ func isDirEmpty(dir string) (bool, error) {
 func ExtractRPM(destdir string, name string) {
 	currentDir, err := os.Getwd()
 	if err != nil {
-		fmt.Printf("Error getting current directory: %v\n", err)
+		dnflog.L.Error("Error getting current directory: %v\n", err)
 		return
 	}
-	fmt.Printf("Current directory: %s\n", currentDir)
+	dnflog.L.Debug("Current directory: %s\n", currentDir)
 
 	err = os.Chdir(destdir)
 	if err != nil {
-		fmt.Printf("Error changing directory: %v\n", err)
+		dnflog.L.Error("Error changing directory: %v\n", err)
 		return
 	}
 
 	newDir, err := os.Getwd()
 	if err != nil {
-		fmt.Printf("Error getting new directory: %v\n", err)
+		dnflog.L.Error("Error getting new directory: %v\n", err)
 		return
 	}
-	fmt.Printf("New directory: %s\n", newDir)
+	dnflog.L.Debug("New directory: %s\n", newDir)
 
 	// Open a package file for reading
 	f, err := os.Open(name)
@@ -126,7 +127,7 @@ func ExtractRPM(destdir string, name string) {
 
 		// solve path
 		if hdr.Mode.IsDir() {
-			fmt.Println(hdr.Name)
+			dnflog.L.Debug(hdr.Name)
 			if err := os.MkdirAll(hdr.Name, hdr.FileInfo().Mode()); err != nil {
 				log.Fatal(err)
 			}
@@ -134,7 +135,7 @@ func ExtractRPM(destdir string, name string) {
 
 		// solve symlink
 		if hdr.Mode&cpio.TypeSymlink == cpio.TypeSymlink {
-			fmt.Println(hdr.Name, "->", hdr.Linkname)
+			dnflog.L.Debug(hdr.Name, "->", hdr.Linkname)
 			// Create the target directory
 			if dirName := filepath.Dir(hdr.Name); dirName != "" {
 				if err := os.MkdirAll(dirName, 0o755); err != nil {
@@ -147,7 +148,7 @@ func ExtractRPM(destdir string, name string) {
 				if err != nil {
 					log.Fatal(err)
 				}
-				if empty == false {
+				if !empty {
 					if err := moveAll(hdr.Name, hdr.Linkname); err != nil {
 						log.Fatal(err)
 					}
@@ -155,7 +156,7 @@ func ExtractRPM(destdir string, name string) {
 
 				err = os.Remove(hdr.Name)
 				if err != nil {
-					fmt.Printf("Error removing existing symlink: %v\n", err)
+					dnflog.L.Error("Error removing existing symlink: %v\n", err)
 					return
 				}
 			}
@@ -192,16 +193,16 @@ func ExtractRPM(destdir string, name string) {
 
 	err = os.Chdir(currentDir)
 	if err != nil {
-		fmt.Printf("Error changing directory: %v\n", err)
+		dnflog.L.Error("Error changing directory: %v\n", err)
 		return
 	}
 
 	oldDir, err := os.Getwd()
 	if err != nil {
-		fmt.Printf("Error getting new directory: %v\n", err)
+		dnflog.L.Error("Error getting new directory: %v\n", err)
 		return
 	}
-	fmt.Printf("New directory: %s\n", oldDir)
+	dnflog.L.Debug("New directory: %s\n", oldDir)
 }
 
 func RecordInstalledPkg(destdir string, rpmpkg sqlquery.ReqRes) error {
@@ -223,15 +224,16 @@ func RecordInstalledPkg(destdir string, rpmpkg sqlquery.ReqRes) error {
 		"name" TEXT,
 		"epoch" INTEGER,
 		"version" TEXT,
-		"release" TEXT
+		"release" TEXT,
+		"arch" TEXT
 	);`
 	_, err = db.Exec(createTableSQL)
 	if err != nil {
 		log.Fatalf("Error creating table: %v\n", err)
 	}
 
-	insertPackageSQL := `INSERT INTO packages (name, epoch, version, release) VALUES (?, ?, ?, ?)`
-	_, err = db.Exec(insertPackageSQL, rpmpkg.Name, rpmpkg.Epoch, rpmpkg.Version, rpmpkg.Release)
+	insertPackageSQL := `INSERT INTO packages (name, epoch, version, release, arch) VALUES (?, ?, ?, ?, ?)`
+	_, err = db.Exec(insertPackageSQL, rpmpkg.Name, rpmpkg.Epoch, rpmpkg.Version, rpmpkg.Release, rpmpkg.Arch)
 	if err != nil {
 		log.Fatalf("Error inserting data: %v\n", err)
 	}
@@ -239,13 +241,13 @@ func RecordInstalledPkg(destdir string, rpmpkg sqlquery.ReqRes) error {
 	return nil
 }
 
-func QueryInstalledPkg(destdir string, name string) (bool, error) {
+func QueryInstalledPkg(destdir string, name string) (bool, sqlquery.ReqRes, error) {
 
 	dbPath := fmt.Sprintf("%s/%s", destdir, "/var/lib/godnf/godnf_packages.db")
 
 	_, err := os.Stat(dbPath)
 	if os.IsNotExist(err) {
-		return false, fmt.Errorf("Not exist db")
+		return false, sqlquery.ReqRes{}, fmt.Errorf("Not exist db")
 	}
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -253,37 +255,37 @@ func QueryInstalledPkg(destdir string, name string) (bool, error) {
 	}
 	defer db.Close()
 
-	querySQL := `SELECT name, epoch, version, release FROM packages WHERE name=?`
+	querySQL := `SELECT name, epoch, version, release, arch FROM packages WHERE name=?`
 	rows, err := db.Query(querySQL, name)
 	if err != nil {
 		log.Fatalf("Error querying data: %v\n", err)
 	}
 	defer rows.Close()
-
+	var rpmpkg sqlquery.ReqRes
 	for rows.Next() {
-		var name string
-		var epoch string
-		var version string
-		var release string
-		err = rows.Scan(&name, &epoch, &version, &release)
+		var name, epoch, version, release, arch string
+		err = rows.Scan(&name, &epoch, &version, &release, &arch)
 		if err != nil {
 			log.Fatalf("Error scanning row: %v\n", err)
 		}
-		fmt.Printf("Name: %s, Epoch: %s, Version: %s, Release: %s\n", name, epoch, version, release)
-
-		return true, nil
+		dnflog.L.Debug("Name: %s, Epoch: %s, Version: %s, Release: %s\n", name, epoch, version, release)
+		rpmpkg.Name = name
+		rpmpkg.Version = version
+		rpmpkg.Release = release
+		rpmpkg.Arch = arch
+		return true, rpmpkg, nil
 	}
 
 	err = rows.Err()
 	if err != nil {
 		log.Fatalf("Error during row iteration: %v\n", err)
 	}
-	return false, fmt.Errorf("Not Found In db")
+	return false, sqlquery.ReqRes{}, fmt.Errorf("Not Found In db")
 }
 
 func InstallRPM(destdir string, rpmpkg sqlquery.ReqRes) {
-	if installed, _ := QueryInstalledPkg(destdir, rpmpkg.Name); installed {
-		fmt.Printf("Already Install : Name: %s, Epoch: %s, Version: %s, Release: %s\n", rpmpkg.Name, rpmpkg.Epoch, rpmpkg.Version, rpmpkg.Release)
+	if installed, _, _ := QueryInstalledPkg(destdir, rpmpkg.Name); installed {
+		fmt.Printf("Name: %s-%s-%s is installed\n", rpmpkg.Name, rpmpkg.Version, rpmpkg.Release)
 		return
 	}
 
@@ -291,7 +293,7 @@ func InstallRPM(destdir string, rpmpkg sqlquery.ReqRes) {
 	parts := strings.Split(trimpath, "/")
 	repoKey := parts[len(parts)-2]
 
-	fmt.Printf("Name: %s Version %s Release %s\n", rpmpkg.Name, rpmpkg.Version, rpmpkg.Release)
+	dnflog.L.Debug("Name: %s Version %s Release %s\n", rpmpkg.Name, rpmpkg.Version, rpmpkg.Release)
 	var packfile string
 	if rpmpkg.Epoch == "" {
 		packfile = fmt.Sprintf("%s-%s-%s.%s.rpm", rpmpkg.Name, rpmpkg.Version, rpmpkg.Release, rpmpkg.Arch)
