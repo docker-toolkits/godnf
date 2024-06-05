@@ -61,6 +61,7 @@ func installPacks(clicontext *cli.Context) error {
 			dbpaths = append(dbpaths, db[:len(db)-4])
 		}
 	}
+
 	dnflog.L.Debug("dbPaths: ", dbpaths)
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.Debug)
 	for _, pack := range packs {
@@ -72,6 +73,7 @@ func installPacks(clicontext *cli.Context) error {
 		var res [][]sqlquery.ReqRes
 		sqlquery.GetAllRequres(pack, 0, &res, dbpaths)
 
+		fmt.Printf("\n")
 		// Print installing packages
 		fmt.Fprintln(w, "==============================================================================================")
 		fmt.Fprintln(w, " Package\tArchitecture\tVersion\tRepository")

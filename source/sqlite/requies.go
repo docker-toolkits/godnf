@@ -304,6 +304,7 @@ func GetRequres(in string, dbpaths []string) ([]ReqRes, ReqRes, error) {
 	var err error
 	var cur ReqRes
 	for _, db := range dbpaths {
+		//TODO: find max version packages
 		reqinfo, cur, err = getRequresInfo(in, db)
 		if err == nil {
 			break
@@ -312,6 +313,7 @@ func GetRequres(in string, dbpaths []string) ([]ReqRes, ReqRes, error) {
 
 	var res []ReqRes
 	for _, db := range dbpaths {
+		//TODO: find max version packages
 		tmp, _ := getRequirePkgname(&reqinfo, db)
 		if len(tmp) != 0 {
 			for _, item := range tmp {
