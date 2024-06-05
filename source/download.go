@@ -124,19 +124,25 @@ func GetSql(url string, dst string) error {
 	return nil
 }
 
-func GetRpm(repoConfs map[string]repodata.RepoConfig, r []sqlquery.ReqRes) error {
+func GetRpm(destdir string, repoConfs map[string]repodata.RepoConfig, r []sqlquery.ReqRes) error {
 	for _, pack := range r {
+		fmt.Printf("GetRpm %s %s\n", pack.DbPath, pack.Name)
 		var packfile string
-		parts := strings.Split(pack.DbPath, "/")
-		repoKey := parts[4]
+		trimpath := strings.TrimPrefix(pack.DbPath, destdir)
+		parts := strings.Split(trimpath, "/")
+		if len(parts) <= 2 {
+			return fmt.Errorf("Not Such Packages")
+		}
+		repoKey := parts[len(parts)-2]
 		if pack.Epoch == "" {
 			packfile = fmt.Sprintf("%s-%s-%s.%s.rpm", pack.Name, pack.Version, pack.Release, pack.Arch)
 		} else {
 			packfile = fmt.Sprintf("%s-%s:%s-%s.%s.rpm", pack.Name, pack.Epoch, pack.Version, pack.Release, pack.Arch)
 		}
 
-		downurl := fmt.Sprintf("%s/%s", repoConfs[repoKey].BaseURL, packfile)
-		dstPath := fmt.Sprintf("%s/%s/%s", "/var/cache/godnf/", repoKey, "packages")
+		downurl1 := fmt.Sprintf("%s/%s", repoConfs[repoKey].BaseURL, packfile)
+		downurl2 := fmt.Sprintf("%s/%s/%s", repoConfs[repoKey].BaseURL, "Packages", packfile)
+		dstPath := fmt.Sprintf("%s/%s/%s/%s", destdir, "/var/cache/godnf/", repoKey, "packages")
 
 		if err := os.MkdirAll(dstPath, 0o755); err != nil {
 			log.Fatal(err)
@@ -144,12 +150,17 @@ func GetRpm(repoConfs map[string]repodata.RepoConfig, r []sqlquery.ReqRes) error
 
 		dest := fmt.Sprintf("%s/%s", dstPath, packfile)
 
-		fmt.Println(downurl, " ", dest)
-		err := Download(downurl, dest)
-		if err != nil {
-			fmt.Println("ERROR download failed ", downurl, " ", dest)
-			return err
+		fmt.Println(downurl1, " ", dest)
+		err1 := Download(downurl1, dest)
+		if err1 != nil {
+			fmt.Println(downurl2, " ", dest)
+			err2 := Download(downurl2, dest)
+			if err2 != nil {
+				fmt.Println("ERROR download failed ", downurl2, " ", dest)
+				return err2
+			}
 		}
+
 	}
 	return nil
 }
