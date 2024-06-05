@@ -168,7 +168,7 @@ func ExtractRPM(destdir string, name string) {
 
 		// solve file
 		if hdr.Mode.IsRegular() {
-			fmt.Println(hdr.Name)
+			dnflog.L.Debug(hdr.Name)
 			// Create the target directory
 			if dirName := filepath.Dir(hdr.Name); dirName != "" {
 				if err := os.MkdirAll(dirName, 0o755); err != nil {
