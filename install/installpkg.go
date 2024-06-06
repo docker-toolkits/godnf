@@ -127,7 +127,7 @@ func ExtractRPM(destdir string, name string) {
 
 		// solve path
 		if hdr.Mode.IsDir() {
-			dnflog.L.Debug(hdr.Name)
+			dnflog.L.Debug("dir %s", hdr.Name)
 			if err := os.MkdirAll(hdr.Name, hdr.FileInfo().Mode()); err != nil {
 				log.Fatal(err)
 			}
@@ -135,22 +135,26 @@ func ExtractRPM(destdir string, name string) {
 
 		// solve symlink
 		if hdr.Mode&cpio.TypeSymlink == cpio.TypeSymlink {
-			dnflog.L.Debug(hdr.Name, "->", hdr.Linkname)
+			dnflog.L.Debug("symlink: ", hdr.Name, "->", hdr.Linkname)
 			// Create the target directory
 			if dirName := filepath.Dir(hdr.Name); dirName != "" {
 				if err := os.MkdirAll(dirName, 0o755); err != nil {
-					log.Fatal(err)
+					log.Fatal("MkdirAll ", err)
 				}
 			}
+			dnflog.L.Debug("Lstat: ", hdr.Name, "->", hdr.Linkname)
+			if info, err := os.Lstat(hdr.Name); err == nil {
+				if info.IsDir() {
+					dnflog.L.Debug("Lstat: ", hdr.Name, info)
+					empty, err := isDirEmpty(hdr.Name)
+					if err != nil {
+						log.Fatal("isDirEmpty ", err)
+					}
 
-			if _, err := os.Lstat(hdr.Name); err == nil {
-				empty, err := isDirEmpty(hdr.Name)
-				if err != nil {
-					log.Fatal(err)
-				}
-				if !empty {
-					if err := moveAll(hdr.Name, hdr.Linkname); err != nil {
-						log.Fatal(err)
+					if !empty {
+						if err := moveAll(hdr.Name, hdr.Linkname); err != nil {
+							log.Fatal("moveAll ", err)
+						}
 					}
 				}
 
@@ -160,7 +164,7 @@ func ExtractRPM(destdir string, name string) {
 					return
 				}
 			}
-
+			dnflog.L.Debug("Symlink: ", hdr.Name, "->", hdr.Linkname)
 			if err := os.Symlink(hdr.Linkname, hdr.Name); err != nil {
 				log.Fatal(err)
 			}
@@ -168,7 +172,7 @@ func ExtractRPM(destdir string, name string) {
 
 		// solve file
 		if hdr.Mode.IsRegular() {
-			dnflog.L.Debug(hdr.Name)
+			dnflog.L.Debug("file:%s", hdr.Name)
 			// Create the target directory
 			if dirName := filepath.Dir(hdr.Name); dirName != "" {
 				if err := os.MkdirAll(dirName, 0o755); err != nil {
@@ -213,7 +217,7 @@ func RecordInstalledPkg(destdir string, rpmpkg sqlquery.ReqRes) error {
 			log.Fatal(err)
 		}
 	}
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -249,7 +253,7 @@ func QueryInstalledPkg(destdir string, name string) (bool, sqlquery.ReqRes, erro
 	if os.IsNotExist(err) {
 		return false, sqlquery.ReqRes{}, fmt.Errorf("Not exist db")
 	}
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}

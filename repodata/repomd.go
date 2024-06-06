@@ -26,7 +26,7 @@ var archMap = map[string]string{
 func GetMetadata(url string) (map[string]rpmeta.RepoMdData, error) {
 	resp, err := http.Get(url)
 	if err != nil {
-		fmt.Println("ERROR")
+		fmt.Println("ERROR ", err)
 		return nil, err
 	}
 	defer resp.Body.Close()

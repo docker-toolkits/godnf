@@ -8,16 +8,18 @@ WHERE r.pkgKey = (SELECT pkgKey FROM packages WHERE Name='systemd');
 */
 package source
 
+/* github.com/mattn/go-sqlite3 Depends on C, so choose modernc.org/sqlite which doesn't depends on C */
 import (
 	"database/sql"
 	"fmt"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github/luochenglcs/godnf/dnflog"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 type queryRes struct {
@@ -68,7 +70,6 @@ func GetAllRequres(in string, l int, res *[][]ReqRes, dbpaths []string) {
 			*res = append(*res, []ReqRes{})
 		}
 		(*res)[l] = append((*res)[l], cur)
-
 		for _, item := range re {
 			var existed bool = false
 			//var pos int
@@ -85,138 +86,196 @@ func GetAllRequres(in string, l int, res *[][]ReqRes, dbpaths []string) {
 	}
 }
 
-func getRequirePkgname(requires *[]queryRes, dbpath string) (res []ReqRes, err error) {
-	db, err := sql.Open("sqlite3", dbpath)
+// v1 > v2: 1
+// v1 < v2; -1
+// v1 = v2: 0
+
+func comparestring(v1, v2 string) int {
+	parts1 := strings.Split(v1, ".")
+	parts2 := strings.Split(v2, ".")
+
+	maxLen := len(parts1)
+	if len(parts2) > maxLen {
+		maxLen = len(parts2)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		var num1 int = 0
+		var num2 int = 0
+
+		if i < len(parts1) {
+			num1, _ = strconv.Atoi(parts1[i])
+		}
+
+		if i < len(parts2) {
+			num2, _ = strconv.Atoi(parts2[i])
+		}
+
+		if num1 < num2 {
+			return -1
+		} else if num1 > num2 {
+			return 1
+		}
+	}
+
+	return 0
+}
+
+// p1 > p2: 1
+// p1 < p2; -1
+// p1 = p2: 0
+func compVerRelease(p1, p2 ReqRes) int {
+	if (comparestring(p1.Version, p2.Version) == 1) ||
+		((comparestring(p1.Version, p2.Version) == 0) && (comparestring(p1.Release, p2.Release) == 1)) {
+		return 1
+	}
+
+	if (comparestring(p1.Version, p2.Version) == 0) && (comparestring(p1.Release, p2.Release) == 0) {
+		return 0
+	}
+
+	return -1
+}
+
+func getRequirePkgname(req queryRes, dbpath string) (res ReqRes, err error) {
+
+	var lastestName string = ""
+	var Arch string
+	var maxP ReqRes
+	var needcomp string = ""
+	if req.Flags.Valid {
+		needcomp = req.Flags.String
+		if req.Epoch.Valid {
+			maxP.Epoch = req.Epoch.String
+		}
+		if req.Version.Valid {
+			maxP.Version = req.Version.String
+		}
+		if req.Release.Valid {
+			maxP.Release = req.Release.String
+		}
+	}
+
+	db, err := sql.Open("sqlite", dbpath)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
 	}
 	defer db.Close()
 
 	//var res []ReqRes
-	var max_epoch, max_version, max_release string
-	var query string
-	var notfound []queryRes
-	for _, req := range *requires {
-		if req.Flags.Valid {
-			var queryBuilder strings.Builder
-			queryBuilder.WriteString(fmt.Sprintf("SELECT p.Name, p.Epoch, p.Version,p.Release,p.Arch FROM packages p JOIN provides pr ON p.pkgKey = pr.pkgKey WHERE pr.Name='%s'", req.Name))
-			if req.Flags.String == "EQ" {
-				/* TODO: */
-				if req.Epoch.Valid {
-					queryBuilder.WriteString(fmt.Sprintf(" AND pr.Epoch='%s'", req.Epoch.String))
-				}
-				if req.Version.Valid {
-					queryBuilder.WriteString(fmt.Sprintf(" AND pr.Version='%s'", req.Version.String))
-				}
-				if req.Release.Valid {
-					queryBuilder.WriteString(fmt.Sprintf(" AND pr.Release='%s'", req.Release.String))
-				}
-			} else if req.Flags.String == "GE" {
-				if req.Epoch.Valid {
-					queryBuilder.WriteString(fmt.Sprintf(" AND (pr.Epoch>'%s'", req.Epoch.String))
-				}
-				if req.Version.Valid {
-					queryBuilder.WriteString(fmt.Sprintf(" OR pr.Version>='%s'", req.Version.String))
-				}
-				if req.Release.Valid {
-					queryBuilder.WriteString(fmt.Sprintf(" OR pr.Release>='%s'", req.Release.String))
-				}
-				queryBuilder.WriteString(fmt.Sprintf(")"))
-			} else {
-				fmt.Println("TODO")
-			}
-			queryBuilder.WriteString(fmt.Sprintf(";"))
-			query = queryBuilder.String()
-		} else {
-			query = fmt.Sprintf("SELECT p.Name,p.Epoch,p.Version,p.Release,p.Arch FROM packages p JOIN provides pr ON p.pkgKey = pr.pkgKey WHERE pr.Name='%s';", req.Name)
+	query := fmt.Sprintf("SELECT p.Name,p.Epoch,p.Version,p.Release,p.Arch FROM packages p JOIN provides pr ON p.pkgKey = pr.pkgKey WHERE pr.Name='%s';", req.Name)
+	//fmt.Printf("query %s\n", query)
+	reqquery, err := db.Query(query)
+	if err != nil {
+		log.Fatalf("Error executing query: %v", err)
+	}
+	defer reqquery.Close()
+
+	for reqquery.Next() {
+		var p2 ReqRes
+		err := reqquery.Scan(&p2.Name, &p2.Epoch, &p2.Version, &p2.Release, &Arch)
+		if err != nil {
+			log.Fatalf("Error scanning row reqquery: %v", err)
 		}
-		//fmt.Printf("query %s\n", query)
-		reqquery, err := db.Query(query)
+
+		if maxP.Version == "" && maxP.Release == "" {
+			lastestName = p2.Name
+			maxP.Epoch = p2.Epoch
+			maxP.Version = p2.Version
+			maxP.Release = p2.Release
+		} else {
+			if needcomp == "" || needcomp == "GE" {
+				if compVerRelease(p2, maxP) != -1 {
+					lastestName = p2.Name
+					maxP.Epoch = p2.Epoch
+					maxP.Version = p2.Version
+					maxP.Release = p2.Release
+				}
+			} else if needcomp == "EQ" {
+				if compVerRelease(p2, maxP) == 0 {
+					lastestName = p2.Name
+					maxP.Epoch = p2.Epoch
+					maxP.Version = p2.Version
+					maxP.Release = p2.Release
+				}
+			} else {
+				if compVerRelease(p2, maxP) == -1 {
+					lastestName = p2.Name
+					maxP.Epoch = p2.Epoch
+					maxP.Version = p2.Version
+					maxP.Release = p2.Release
+				}
+			}
+		}
+	}
+
+	/* No rpm package is queried from the tables 'provides' if lastestName == "",  query from the files table */
+	if lastestName == "" {
+		query = fmt.Sprintf("SELECT p.Name,p.Epoch,p.Version,p.Release,p.Arch FROM packages p JOIN files pr ON p.pkgKey = pr.pkgKey WHERE pr.Name='%s';", req.Name)
+		filequery, err := db.Query(query)
 		if err != nil {
 			log.Fatalf("Error executing query: %v", err)
 		}
-		defer reqquery.Close()
+		defer filequery.Close()
 
-		var lastestName string = ""
-		var Arch string
-		for reqquery.Next() {
-			var Name, Epoch, Version, Release string
-			err := reqquery.Scan(&Name, &Epoch, &Version, &Release, &Arch)
+		for filequery.Next() {
+			var p2 ReqRes
+			err := filequery.Scan(&p2.Name, &p2.Epoch, &p2.Version, &p2.Release, &Arch)
 			if err != nil {
-				log.Fatalf("Error scanning row: %v", err)
+				log.Fatalf("Error scanning row filequery: %v", err)
 			}
-			if lastestName == "" {
-				lastestName = Name
-				max_version = Version
-				max_release = Release
+
+			if maxP.Version == "" && maxP.Release == "" {
+				lastestName = p2.Name
+				maxP.Epoch = p2.Epoch
+				maxP.Version = p2.Version
+				maxP.Release = p2.Release
 			} else {
-				// TODO :11.ocs < 2.ocs， it is unreasonable
-				if (strings.Compare(Version, max_version) == 1) ||
-					((strings.Compare(Version, max_version) == 0) && (strings.Compare(Release, max_release) != -1)) {
-					lastestName = Name
-					max_version = Version
-					max_release = Release
-				}
-			}
-		}
-
-		/* No rpm package is queried from the tables 'provides' if lastestName == "",  query from the files table */
-		if lastestName == "" {
-			query = fmt.Sprintf("SELECT p.Name,p.Epoch,p.Version,p.Release,p.Arch FROM packages p JOIN files pr ON p.pkgKey = pr.pkgKey WHERE pr.Name='%s';", req.Name)
-			filequery, err := db.Query(query)
-			if err != nil {
-				log.Fatalf("Error executing query: %v", err)
-			}
-			defer filequery.Close()
-
-			for filequery.Next() {
-				var Name, Epoch, Version, Release string
-				err := filequery.Scan(&Name, &Epoch, &Version, &Release, &Arch)
-				if err != nil {
-					log.Fatalf("Error scanning row: %v", err)
-				}
-				if lastestName == "" {
-					lastestName = Name
-					max_version = Version
-					max_release = Release
+				if needcomp == "" || needcomp == "GE" {
+					if compVerRelease(p2, maxP) != -1 {
+						lastestName = p2.Name
+						maxP.Epoch = p2.Epoch
+						maxP.Version = p2.Version
+						maxP.Release = p2.Release
+					}
+				} else if needcomp == "EQ" {
+					if compVerRelease(p2, maxP) == 0 {
+						lastestName = p2.Name
+						maxP.Epoch = p2.Epoch
+						maxP.Version = p2.Version
+						maxP.Release = p2.Release
+					}
 				} else {
-					if (strings.Compare(Version, max_version) == 1) ||
-						((strings.Compare(Version, max_version) == 0) && (strings.Compare(Release, max_release) != -1)) {
-						lastestName = Name
-						max_version = Version
-						max_release = Release
+					if compVerRelease(p2, maxP) == -1 {
+						lastestName = p2.Name
+						maxP.Epoch = p2.Epoch
+						maxP.Version = p2.Version
+						maxP.Release = p2.Release
 					}
 				}
 			}
 		}
-
-		// Not found in current db, record it
-		if lastestName == "" {
-			notfound = append(notfound, req)
-			continue
-		}
-
-		//fmt.Printf("Name: %s | %s | %s | %s\n", lastestName, max_epoch, max_version, max_release)
-		var resultPkg ReqRes
-		resultPkg.DbPath = dbpath
-		resultPkg.Name = lastestName
-		resultPkg.Version = max_version
-		resultPkg.Release = max_release
-		resultPkg.Epoch = max_epoch
-		resultPkg.Arch = Arch
-
-		existed, _ := IsExisted(res, resultPkg)
-		if existed == false {
-			res = append(res, resultPkg)
-		}
 	}
-	*requires = notfound
 
-	return res, nil
+	// Not found in current db, record it
+	if lastestName == "" {
+		return ReqRes{}, fmt.Errorf("Not Found")
+	}
+
+	//fmt.Printf("Name: %s | %s | %s | %s\n", lastestName, max_epoch, max_version, max_release)
+	var resultPkg ReqRes
+	resultPkg.DbPath = dbpath
+	resultPkg.Name = lastestName
+	resultPkg.Version = maxP.Version
+	resultPkg.Release = maxP.Release
+	resultPkg.Epoch = maxP.Epoch
+	resultPkg.Arch = Arch
+
+	return resultPkg, nil
 }
 
 func getRequresInfo(in, dbpath string) ([]queryRes, ReqRes, error) {
-	db, err := sql.Open("sqlite3", dbpath)
+	db, err := sql.Open("sqlite", dbpath)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
 	}
@@ -240,7 +299,7 @@ func getRequresInfo(in, dbpath string) ([]queryRes, ReqRes, error) {
 		var Epoch, Version, Release string
 		err := packrows.Scan(&pkgKey, &Name, &Epoch, &arch, &Version, &Release)
 		if err != nil {
-			log.Fatalf("Error scanning row: %v", err)
+			log.Fatalf("Error scanning row packrows: %v", err)
 		}
 		//fmt.Printf("pkgKey: %d, Name: %s, Arch: %s, Version: %s, Release %s\n", pkgKey, Name, arch, Version, Release)
 		if latestPkgKey == -1 {
@@ -283,7 +342,7 @@ func getRequresInfo(in, dbpath string) ([]queryRes, ReqRes, error) {
 		var req queryRes
 		err := reqrows.Scan(&req.Name, &req.Flags, &req.Epoch, &req.Version, &req.Release)
 		if err != nil {
-			log.Fatalf("Error scanning row: %v", err)
+			log.Fatalf("Error scanning row reqrows: %v", err)
 		}
 		//fmt.Printf("Name: %s\n", req.Name)
 		/* req.Name (systemd-rpm-macros = 255-4.ocs23 if rpm-build) TODO:pattern */
@@ -301,32 +360,54 @@ func getRequresInfo(in, dbpath string) ([]queryRes, ReqRes, error) {
 
 func GetRequres(in string, dbpaths []string) ([]ReqRes, ReqRes, error) {
 	var reqinfo []queryRes
-	var err error
 	var cur ReqRes
+
 	for _, db := range dbpaths {
-		//TODO: find max version packages
-		reqinfo, cur, err = getRequresInfo(in, db)
+		r, c, err := getRequresInfo(in, db)
 		if err == nil {
-			break
+			if cur.Name == "" {
+				cur = c
+				reqinfo = r
+			} else {
+				if compVerRelease(c, cur) == 1 {
+					cur = c
+					reqinfo = r
+
+				}
+			}
 		}
+	}
+
+	if cur.Name == "" {
+		dnflog.L.Info("Pkg %s >> %s-%s-%s\n", in, cur.Name, cur.Version, cur.Release)
 	}
 
 	var res []ReqRes
-	for _, db := range dbpaths {
-		//TODO: find max version packages
-		tmp, _ := getRequirePkgname(&reqinfo, db)
-		if len(tmp) != 0 {
-			for _, item := range tmp {
-				dnflog.L.Debug("out >> %s-%s-%s.%s\n", item.Name, item.Version, item.Release, item.Arch)
+	for _, item := range reqinfo {
+		var maxpkg ReqRes
+		for _, db := range dbpaths {
+			t, err := getRequirePkgname(item, db)
+			if err == nil {
+				if maxpkg.Name == "" {
+					maxpkg = t
+				} else {
+					if compVerRelease(t, maxpkg) == 1 {
+						maxpkg = t
+					}
+				}
 			}
-			res = append(res, tmp[:]...)
 		}
-	}
 
-	/* if reqinfo != 0, mean have requires pkg not found in db */
-	if len(reqinfo) != 0 {
-		dnflog.L.Error("Not Such Package ", reqinfo)
-		return nil, ReqRes{}, fmt.Errorf("Not Such Package ", reqinfo)
+		/* if maxpkg.Name != 0, mean have requires pkg not found in db */
+		if maxpkg.Name == "" {
+			dnflog.L.Error("Not Such Package ", item)
+			log.Fatalf("Not Such Package: %v", item)
+			return nil, ReqRes{}, fmt.Errorf("Not Such Package ", item)
+		}
+
+		if existed, _ := IsExisted(res, maxpkg); !existed {
+			res = append(res, maxpkg)
+		}
 	}
 
 	dnflog.L.Debug("---->%s %v<------\n", in, cur)

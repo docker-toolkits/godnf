@@ -8,6 +8,7 @@ import (
 	"github/luochenglcs/godnf/source"
 	sqlquery "github/luochenglcs/godnf/source/sqlite"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
@@ -52,6 +53,7 @@ func installPacks(clicontext *cli.Context) error {
 				return fmt.Errorf("Error GetMetadata ", rc.BaseURL)
 			}
 			db := fmt.Sprintf("%s/%s%s/%s", destdir, "/var/cache/godnf/", key, strings.TrimPrefix(repomd["primary_db"].Location.Href, "repodata/"))
+			db = filepath.Clean(db)
 			err = source.GetSql(rc.BaseURL+repomd["primary_db"].Location.Href, db)
 			if err != nil {
 				dnflog.L.Error("Error GetSql ", rc.BaseURL)
@@ -85,6 +87,7 @@ func installPacks(clicontext *cli.Context) error {
 			for _, item := range res[i] {
 				trimpath := strings.TrimPrefix(item.DbPath, destdir)
 				parts := strings.Split(trimpath, "/")
+
 				repoKey := parts[len(parts)-2]
 				fmt.Fprintln(w, item.Name, "\t", item.Arch, "\t", item.Version, "-", item.Release, "\t", repoKey)
 			}

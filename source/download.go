@@ -145,6 +145,7 @@ func GetRpm(destdir string, repoConfs map[string]repodata.RepoConfig, pack sqlqu
 	downurl1 := fmt.Sprintf("%s/%s", repoConfs[repoKey].BaseURL, packfile)
 	downurl2 := fmt.Sprintf("%s/%s/%s", repoConfs[repoKey].BaseURL, "Packages", packfile)
 	dstPath := fmt.Sprintf("%s/%s/%s/%s", destdir, "/var/cache/godnf/", repoKey, "packages")
+	dstPath = filepath.Clean(dstPath)
 
 	if err := os.MkdirAll(dstPath, 0o755); err != nil {
 		log.Fatal(err)
