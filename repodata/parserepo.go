@@ -64,14 +64,9 @@ func GetRepo() (map[string]RepoConfig, error) {
 		if err != nil {
 			return nil
 		}
-		repoConfigs = make(map[string]RepoConfig)
 
 		// Iterate through the sections in the .repo file
 		for _, section := range cfg.Sections() {
-			if section.Name() == "DEFAULT" {
-				continue
-			}
-
 			// Parse the section into a RepoConfig struct
 			rc := RepoConfig{
 				Name:     section.Name(),
@@ -82,6 +77,7 @@ func GetRepo() (map[string]RepoConfig, error) {
 
 			rc.BaseURL = strings.Replace(rc.BaseURL, "$releasever", release, 1)
 			rc.BaseURL = strings.Replace(rc.BaseURL, "$basearch", arch, 1)
+
 			repoConfigs[rc.Name] = rc
 		}
 

@@ -116,7 +116,7 @@ func installPacks(clicontext *cli.Context) error {
 	}
 
 	// clean cache
-	//os.RemoveAll("/var/cache/godnf/")
+	os.RemoveAll("/var/cache/godnf/")
 
 	return nil
 }
