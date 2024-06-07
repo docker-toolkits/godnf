@@ -14,6 +14,7 @@ import (
 
 	"github.com/cavaliergopher/cpio"
 	"github.com/cavaliergopher/rpm"
+	"github.com/klauspost/compress/zstd"
 	"github.com/ulikunitz/xz"
 )
 
@@ -96,16 +97,26 @@ func ExtractRPM(destdir string, name string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	var compression string
 	// Check the compression algorithm of the payload
-	if compression := pkg.PayloadCompression(); compression != "xz" {
-		log.Fatalf("Unsupported compression: %s", compression)
+	if compression = pkg.PayloadCompression(); compression != "xz" && compression != "zstd" {
+		log.Fatalf("Unsupported compression: %s pkg %s", compression, name)
 	}
 
-	// Attach a reader to decompress the payload
-	xzReader, err := xz.NewReader(f)
-	if err != nil {
-		log.Fatal(err)
+	var pkgReader io.Reader
+	var comperr error
+	if compression == "xz" {
+		// Attach a reader to decompress the payload
+		pkgReader, comperr = xz.NewReader(f)
+		if comperr != nil {
+			log.Fatal(comperr)
+		}
+	} else if compression == "zstd" {
+		// Attach a reader to decompress the payload
+		pkgReader, comperr = zstd.NewReader(f)
+		if comperr != nil {
+			log.Fatal(comperr)
+		}
 	}
 
 	// Check the archive format of the payload
@@ -114,7 +125,7 @@ func ExtractRPM(destdir string, name string) {
 	}
 
 	// Attach a reader to unarchive each file in the payload
-	cpioReader := cpio.NewReader(xzReader)
+	cpioReader := cpio.NewReader(pkgReader)
 	for {
 		// Move to the next file in the archive
 		hdr, err := cpioReader.Next()
