@@ -54,7 +54,7 @@ func installPacks(clicontext *cli.Context) error {
 			}
 			db := fmt.Sprintf("%s/%s%s/%s", destdir, "/var/cache/godnf/", key, strings.TrimPrefix(repomd["primary_db"].Location.Href, "repodata/"))
 			db = filepath.Clean(db)
-			err = source.GetSql(rc.BaseURL+repomd["primary_db"].Location.Href, db)
+			err = source.GetSql(rc.BaseURL+"/"+repomd["primary_db"].Location.Href, db)
 			if err != nil {
 				dnflog.L.Error("Error GetSql ", rc.BaseURL)
 				return fmt.Errorf("Error GetSql ", rc.BaseURL)

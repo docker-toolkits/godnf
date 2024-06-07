@@ -142,8 +142,12 @@ func GetRpm(destdir string, repoConfs map[string]repodata.RepoConfig, pack sqlqu
 		packfile = fmt.Sprintf("%s-%s:%s-%s.%s.rpm", pack.Name, pack.Epoch, pack.Version, pack.Release, pack.Arch)
 	}
 
-	downurl1 := fmt.Sprintf("%s/%s", repoConfs[repoKey].BaseURL, packfile)
-	downurl2 := fmt.Sprintf("%s/%s/%s", repoConfs[repoKey].BaseURL, "Packages", packfile)
+	var downurl []string
+
+	downurl = append(downurl, fmt.Sprintf("%s/%s", repoConfs[repoKey].BaseURL, packfile))
+	downurl = append(downurl, fmt.Sprintf("%s/%s/%s", repoConfs[repoKey].BaseURL, "Packages", packfile))
+	packfilerunes := []rune(packfile)
+	downurl = append(downurl, fmt.Sprintf("%s/%s/%c/%s", repoConfs[repoKey].BaseURL, "Packages", packfilerunes[0], packfile))
 	dstPath := fmt.Sprintf("%s/%s/%s/%s", destdir, "/var/cache/godnf/", repoKey, "packages")
 	dstPath = filepath.Clean(dstPath)
 
@@ -152,17 +156,19 @@ func GetRpm(destdir string, repoConfs map[string]repodata.RepoConfig, pack sqlqu
 	}
 
 	dest := fmt.Sprintf("%s/%s", dstPath, packfile)
-
-	dnflog.L.Debug(downurl1, " ", dest)
-	err1 := Download(downurl1, dest)
-	if err1 != nil {
-		dnflog.L.Debug(downurl2, " ", dest)
-		err2 := Download(downurl2, dest)
-		if err2 != nil {
-			dnflog.L.Error("ERROR download failed ", downurl2, " ", dest)
-			return err2
+	success := false
+	for _, url := range downurl {
+		err := Download(url, dest)
+		if err == nil {
+			dnflog.L.Debug("download success ", url, " ", dest)
+			success = true
+			break
 		}
 	}
 
+	if !success {
+		dnflog.L.Error("download failed ", repoConfs[repoKey].BaseURL, " ", pack.Name)
+		return fmt.Errorf("Not Such Package in repo")
+	}
 	return nil
 }
