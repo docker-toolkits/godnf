@@ -1,9 +1,0 @@
-#FROM mirrors.tencent.com/tencentos/tencentos4-rt-static
-FROM scratch
-
-ADD  rootfs.tar.gz /
-ADD  busybox /usr/sbin/
-COPY OpenCloudOS-Stream-EPOL.repo /etc/yum.repos.d/
-COPY OpenCloudOS-Stream.repo /etc/yum.repos.d/
-COPY os-release /etc/
-COPY godnf /usr/bin
