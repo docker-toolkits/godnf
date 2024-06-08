@@ -62,9 +62,9 @@ func IsExisted(res []ReqRes, item ReqRes) (existed bool, pos int) {
 }
 
 // TODO: Better traversal
-func GetAllRequres(in string, l int, res *[][]ReqRes, dbpaths []string) {
+func GetAllRequres(in string, arch string, l int, res *[][]ReqRes, dbpaths []string) {
 	if in != "" {
-		re, cur, _ := GetRequres(in, dbpaths)
+		re, cur, _ := GetRequres(in, arch, dbpaths)
 		//add it to new level
 		if l >= len(*res) {
 			*res = append(*res, []ReqRes{})
@@ -80,7 +80,7 @@ func GetAllRequres(in string, l int, res *[][]ReqRes, dbpaths []string) {
 				}
 			}
 			if !existed {
-				GetAllRequres(item.Name, l+1, res, dbpaths)
+				GetAllRequres(item.Name, arch, l+1, res, dbpaths)
 			}
 		}
 	}
@@ -137,10 +137,10 @@ func compVerRelease(p1, p2 ReqRes) int {
 	return -1
 }
 
-func getRequirePkgname(req queryRes, dbpath string) (res ReqRes, err error) {
+func getRequirePkgname(req queryRes, arch, dbpath string) (res ReqRes, err error) {
 
 	var lastestName string = ""
-	var Arch string
+	var qArch string
 	var maxP ReqRes
 	var needcomp string = ""
 	if req.Flags.Valid {
@@ -167,17 +167,21 @@ func getRequirePkgname(req queryRes, dbpath string) (res ReqRes, err error) {
 	//fmt.Printf("query %s\n", query)
 	reqquery, err := db.Query(query)
 	if err != nil {
-		log.Fatalf("Error executing query: %v", err)
+		log.Fatalf("Error executing query provides: %v", err)
 	}
 	defer reqquery.Close()
 
 	for reqquery.Next() {
 		var p2 ReqRes
-		err := reqquery.Scan(&p2.Name, &p2.Epoch, &p2.Version, &p2.Release, &Arch)
+		err := reqquery.Scan(&p2.Name, &p2.Epoch, &p2.Version, &p2.Release, &qArch)
 		if err != nil {
 			log.Fatalf("Error scanning row reqquery: %v", err)
 		}
 
+		if qArch != "noarch" && qArch != arch {
+			continue
+		}
+		maxP.Arch = qArch
 		if maxP.Version == "" && maxP.Release == "" {
 			lastestName = p2.Name
 			maxP.Epoch = p2.Epoch
@@ -214,17 +218,22 @@ func getRequirePkgname(req queryRes, dbpath string) (res ReqRes, err error) {
 		query = fmt.Sprintf("SELECT p.Name,p.Epoch,p.Version,p.Release,p.Arch FROM packages p JOIN files pr ON p.pkgKey = pr.pkgKey WHERE pr.Name='%s';", req.Name)
 		filequery, err := db.Query(query)
 		if err != nil {
-			log.Fatalf("Error executing query: %v", err)
+			log.Fatalf("Error executing query files: %v", err)
 		}
 		defer filequery.Close()
 
 		for filequery.Next() {
 			var p2 ReqRes
-			err := filequery.Scan(&p2.Name, &p2.Epoch, &p2.Version, &p2.Release, &Arch)
+			err := filequery.Scan(&p2.Name, &p2.Epoch, &p2.Version, &p2.Release, &qArch)
 			if err != nil {
 				log.Fatalf("Error scanning row filequery: %v", err)
 			}
 
+			if qArch != "noarch" && qArch != arch {
+				continue
+			}
+
+			maxP.Arch = qArch
 			if maxP.Version == "" && maxP.Release == "" {
 				lastestName = p2.Name
 				maxP.Epoch = p2.Epoch
@@ -259,7 +268,7 @@ func getRequirePkgname(req queryRes, dbpath string) (res ReqRes, err error) {
 
 	// Not found in current db, record it
 	if lastestName == "" {
-		return ReqRes{}, fmt.Errorf("Not Found")
+		return ReqRes{}, fmt.Errorf("not Found")
 	}
 
 	//fmt.Printf("Name: %s | %s | %s | %s\n", lastestName, max_epoch, max_version, max_release)
@@ -269,12 +278,12 @@ func getRequirePkgname(req queryRes, dbpath string) (res ReqRes, err error) {
 	resultPkg.Version = maxP.Version
 	resultPkg.Release = maxP.Release
 	resultPkg.Epoch = maxP.Epoch
-	resultPkg.Arch = Arch
+	resultPkg.Arch = maxP.Arch
 
 	return resultPkg, nil
 }
 
-func getRequresInfo(in, dbpath string) ([]queryRes, ReqRes, error) {
+func getRequresInfo(in, arch, dbpath string) ([]queryRes, ReqRes, error) {
 	db, err := sql.Open("sqlite", dbpath)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
@@ -285,26 +294,32 @@ func getRequresInfo(in, dbpath string) ([]queryRes, ReqRes, error) {
 	query := `SELECT p.pkgKey,p.Name,p.Epoch,p.arch,p.Version,p.Release FROM packages p JOIN provides pr ON p.pkgKey = pr.pkgKey WHERE pr.Name=?;`
 	packrows, err := db.Query(query, in)
 	if err != nil {
-		log.Fatalf("Error executing query: %v", err)
+		log.Fatalf("Error getRequresInfo executing query provides: %v", err)
 	}
 	defer packrows.Close()
 
 	var latestPkgKey int = -1
 	var max_epoch, max_version, max_release string
-	var arch, Name string
+	var lastestarch string = arch
+	var qarch, Name string
 	var currentpkg ReqRes
 	//fmt.Println("Data from 'packages' table:")
 	for packrows.Next() {
 		var pkgKey int
 		var Epoch, Version, Release string
-		err := packrows.Scan(&pkgKey, &Name, &Epoch, &arch, &Version, &Release)
+		err := packrows.Scan(&pkgKey, &Name, &Epoch, &qarch, &Version, &Release)
 		if err != nil {
 			log.Fatalf("Error scanning row packrows: %v", err)
 		}
-		//fmt.Printf("pkgKey: %d, Name: %s, Arch: %s, Version: %s, Release %s\n", pkgKey, Name, arch, Version, Release)
+
+		if qarch != "noarch" && qarch != arch {
+			continue
+		}
+		lastestarch = qarch
+		//fmt.Printf("pkgKey: %d, Name: %s, Arch: %s, Version: %s, Release %s\n", pkgKey, Name, qarch, Version, Release)
 		if latestPkgKey == -1 {
 			latestPkgKey = pkgKey
-			//max_epoch = Epoch
+			//max_epoch = Epochd
 			max_version = Version
 			max_release = Release
 		} else {
@@ -325,7 +340,7 @@ func getRequresInfo(in, dbpath string) ([]queryRes, ReqRes, error) {
 	currentpkg.Name = Name
 	currentpkg.DbPath = dbpath
 	currentpkg.Epoch = max_epoch
-	currentpkg.Arch = arch
+	currentpkg.Arch = lastestarch
 	currentpkg.Version = max_version
 	currentpkg.Release = max_release
 
@@ -333,7 +348,7 @@ func getRequresInfo(in, dbpath string) ([]queryRes, ReqRes, error) {
 	query = `SELECT Name,Flags,Epoch,Version,Release FROM requires WHERE pkgKey=?;`
 	reqrows, err := db.Query(query, latestPkgKey)
 	if err != nil {
-		log.Fatalf("Error executing query: %v", err)
+		log.Fatalf("Error executing query requires:  %v", err)
 	}
 	defer reqrows.Close()
 
@@ -358,12 +373,12 @@ func getRequresInfo(in, dbpath string) ([]queryRes, ReqRes, error) {
 	return requires, currentpkg, nil
 }
 
-func GetRequres(in string, dbpaths []string) ([]ReqRes, ReqRes, error) {
+func GetRequres(in string, arch string, dbpaths []string) ([]ReqRes, ReqRes, error) {
 	var reqinfo []queryRes
 	var cur ReqRes
 
 	for _, db := range dbpaths {
-		r, c, err := getRequresInfo(in, db)
+		r, c, err := getRequresInfo(in, arch, db)
 		if err == nil {
 			if cur.Name == "" {
 				cur = c
@@ -386,7 +401,7 @@ func GetRequres(in string, dbpaths []string) ([]ReqRes, ReqRes, error) {
 	for _, item := range reqinfo {
 		var maxpkg ReqRes
 		for _, db := range dbpaths {
-			t, err := getRequirePkgname(item, db)
+			t, err := getRequirePkgname(item, arch, db)
 			if err == nil {
 				if maxpkg.Name == "" {
 					maxpkg = t

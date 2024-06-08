@@ -20,6 +20,10 @@ type RepoConfig struct {
 	GPGCheck bool
 }
 
+func GetRuntimeArch() string {
+	return archMap[runtime.GOARCH]
+}
+
 func getVerAndArch() (release, arch string) {
 	file, err := os.Open("/etc/os-release")
 	if err != nil {
@@ -43,7 +47,7 @@ func getVerAndArch() (release, arch string) {
 		return
 	}
 	dnflog.L.Debug(versionID)
-	return versionID, archMap[runtime.GOARCH]
+	return versionID, GetRuntimeArch()
 }
 
 func GetRepo() (map[string]RepoConfig, error) {
@@ -77,22 +81,21 @@ func GetRepo() (map[string]RepoConfig, error) {
 
 			rc.BaseURL = strings.Replace(rc.BaseURL, "$releasever", release, 1)
 			rc.BaseURL = strings.Replace(rc.BaseURL, "$basearch", arch, 1)
-
-			repoConfigs[rc.Name] = rc
+			if rc.Enabled {
+				repoConfigs[rc.Name] = rc
+			}
 		}
 
 		return nil
 	})
 
 	for key, rc := range repoConfigs {
-		if rc.Enabled {
-			fmt.Printf("reponame:%s url:%s\n", key, rc.BaseURL)
-			dnflog.L.Debug("key: ", key)
-			dnflog.L.Debug("name: ", rc.Name)
-			dnflog.L.Debug("BaseURL: ", rc.BaseURL)
-			dnflog.L.Debug("Enabled: ", rc.Enabled)
-			dnflog.L.Debug("GPGCheck: ", rc.GPGCheck)
-		}
+		fmt.Printf("reponame:%s url:%s\n", key, rc.BaseURL)
+		dnflog.L.Debug("key: ", key)
+		dnflog.L.Debug("name: ", rc.Name)
+		dnflog.L.Debug("BaseURL: ", rc.BaseURL)
+		dnflog.L.Debug("Enabled: ", rc.Enabled)
+		dnflog.L.Debug("GPGCheck: ", rc.GPGCheck)
 	}
 
 	return repoConfigs, nil

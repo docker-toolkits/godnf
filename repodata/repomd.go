@@ -15,7 +15,8 @@ import (
 
 var archMap = map[string]string{
 	"amd64":   "x86_64",
-	"386":     "x86",
+	"386":     "i386",
+	"686":     "i686",
 	"arm64":   "aarch64",
 	"arm":     "arm",
 	"ppc64":   "ppc64",

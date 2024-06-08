@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	"github.com/urfave/cli"
@@ -44,23 +45,44 @@ func installPacks(clicontext *cli.Context) error {
 	}
 
 	var dbpaths []string
-	for key, rc := range repoConfs {
-		if rc.Enabled == true {
-			dnflog.L.Debug("key: ", key)
-			repomd, err := repodata.GetMetadata(rc.BaseURL + "/repodata/repomd.xml")
-			if err != nil {
-				dnflog.L.Error("Error GetMetadata ", rc.BaseURL)
-				return fmt.Errorf("Error GetMetadata ", rc.BaseURL)
-			}
-			db := fmt.Sprintf("%s/%s%s/%s", destdir, "/var/cache/godnf/", key, strings.TrimPrefix(repomd["primary_db"].Location.Href, "repodata/"))
-			db = filepath.Clean(db)
-			err = source.GetSql(rc.BaseURL+"/"+repomd["primary_db"].Location.Href, db)
-			if err != nil {
-				dnflog.L.Error("Error GetSql ", rc.BaseURL)
-				return fmt.Errorf("Error GetSql ", rc.BaseURL)
-			}
+	var wg sync.WaitGroup
+	ch := make(chan string, len(repoConfs))
 
-			dbpaths = append(dbpaths, db[:len(db)-4])
+	for key, rc := range repoConfs {
+		dnflog.L.Debug("key: ", key)
+		repomd, err := repodata.GetMetadata(rc.BaseURL + "/repodata/repomd.xml")
+		if err != nil {
+			dnflog.L.Error("Error GetMetadata ", rc.BaseURL)
+			return fmt.Errorf("error GetMetadata %s", rc.BaseURL)
+		}
+		db := fmt.Sprintf("%s/%s%s/%s", destdir, "/var/cache/godnf/", key, strings.TrimPrefix(repomd["primary_db"].Location.Href, "repodata/"))
+		db = filepath.Clean(db)
+		dbpaths = append(dbpaths, db[:len(db)-4])
+		wg.Add(1)
+		downurl := fmt.Sprintf("%s/%s", rc.BaseURL, repomd["primary_db"].Location.Href)
+
+		go func(url, dbstore string) {
+			defer wg.Done()
+			fmt.Println(url + "   " + dbstore)
+			err := source.GetSql(url, dbstore)
+			if err != nil {
+				dnflog.L.Error("Error GetSql ", url)
+				ch <- err.Error()
+				return
+			}
+			ch <- "success"
+		}(downurl, db)
+	}
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for msg := range ch {
+		if msg != "success" {
+			fmt.Println("Error:", msg)
+			return fmt.Errorf("get db Error: %s", msg)
 		}
 	}
 
@@ -73,8 +95,10 @@ func installPacks(clicontext *cli.Context) error {
 		}
 
 		var res [][]sqlquery.ReqRes
-		sqlquery.GetAllRequres(pack, 0, &res, dbpaths)
+		arch := repodata.GetRuntimeArch()
+		sqlquery.GetAllRequres(pack, arch, 0, &res, dbpaths)
 
+		var totalpkg int = 0
 		fmt.Printf("\n")
 		// Print installing packages
 		fmt.Fprintln(w, "==============================================================================================")
@@ -90,18 +114,38 @@ func installPacks(clicontext *cli.Context) error {
 
 				repoKey := parts[len(parts)-2]
 				fmt.Fprintln(w, item.Name, "\t", item.Arch, "\t", item.Version, "-", item.Release, "\t", repoKey)
+				totalpkg++
 			}
 		}
 		w.Flush()
 
 		fmt.Printf("\n")
+		getrpmch := make(chan string, totalpkg)
 		for i := 0; i <= len(res)-1; i++ {
 			for _, item := range res[i] {
-				fmt.Printf("Downloading %s-%s-%s.%s\n", item.Name, item.Version, item.Release, item.Arch)
-				err := source.GetRpm(destdir, repoConfs, item)
-				if err != nil {
-					return fmt.Errorf("Get Rpm failed %v %v", item, err)
-				}
+				wg.Add(1)
+				go func(pkg sqlquery.ReqRes) {
+					defer wg.Done()
+					err := source.GetRpm(destdir, repoConfs, pkg)
+					if err != nil {
+						getrpmch <- fmt.Sprintf("get Rpm failed %v %v", pkg, err)
+						return
+					}
+					fmt.Printf("Download %s-%s-%s.%s\n", pkg.Name, pkg.Version, pkg.Release, pkg.Arch)
+					getrpmch <- "success"
+				}(item)
+			}
+		}
+
+		go func() {
+			wg.Wait()
+			close(getrpmch)
+		}()
+
+		for msg := range getrpmch {
+			if msg != "success" {
+				fmt.Println("Error:", msg)
+				return fmt.Errorf("get db Error: %s", msg)
 			}
 		}
 
