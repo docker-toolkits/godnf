@@ -2,5 +2,5 @@ cd ../
 sh -x build.sh
 cd -
 cp ../godnf .
-docker build -t opencloudos-godnf -f dockerfile.ocs .
-docker build -t ubi9-godnf -f dockerfile.rh .
+docker build -t ocs23-godnf -f dockerfile.ocs23 .
+docker build -t ubi9-godnf -f dockerfile.ubi9 .

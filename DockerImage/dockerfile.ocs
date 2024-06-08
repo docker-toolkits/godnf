@@ -1,9 +1,0 @@
-FROM scratch
-
-ADD  rootfs.tar.gz /
-COPY OpencloudOS/OpenCloudOS-Stream-EPOL.repo /etc/yum.repos.d/
-COPY OpencloudOS/OpenCloudOS-Stream.repo /etc/yum.repos.d/
-COPY OpencloudOS/os-release /etc/
-COPY godnf /usr/bin
-
-CMD ["/bin/sh"]

@@ -1,0 +1,8 @@
+FROM scratch
+
+ADD  rootfs.tar.gz /
+COPY Redhat-ubi9/ubi9.repo /etc/yum.repos.d/
+COPY Redhat-ubi9/os-release /etc/
+COPY godnf /usr/bin
+
+CMD ["/bin/sh"]
