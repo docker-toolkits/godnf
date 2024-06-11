@@ -63,7 +63,6 @@ func installPacks(clicontext *cli.Context) error {
 
 		go func(url, dbstore string) {
 			defer wg.Done()
-			fmt.Println(url + "   " + dbstore)
 			err := source.GetSql(url, dbstore)
 			if err != nil {
 				dnflog.L.Error("Error GetSql ", url)
