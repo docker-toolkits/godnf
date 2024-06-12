@@ -20,3 +20,36 @@ But godnf just 4.5M. We just add /etc/os-release, repo file, static busybox, the
 | godnf | 6.8M | godnf packager manager |
 
 
+
+usage:
+```shell
+NAME:
+   godnf - package manager use go
+
+USAGE:
+   godnf [global options] command [command options] [arguments...]
+
+VERSION:
+   v1.0.0
+
+COMMANDS:
+   install  install rpm packages
+   list     list rpm packages
+   help, h  Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --loglevel value  set log level: 0-DEBUG, 1-INFO, 2-WARN, 3-ERROR, default:3 (default: 3)
+   --help, -h        show help
+   --version, -v     print the version
+```
+
+install:
+```
+godnf install python dnf
+```
+
+list:
+```shell
+godnf list
+godnf list --installed
+```
