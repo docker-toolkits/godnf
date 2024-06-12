@@ -91,6 +91,11 @@ func GetAllRequres(in string, arch string, l int, res *[][]ReqRes, dbpaths []str
 // v1 = v2: 0
 
 func comparestring(v1, v2 string) int {
+
+	if v1 == "" || v2 == "" {
+		return 0
+	}
+
 	parts1 := strings.Split(v1, ".")
 	parts2 := strings.Split(v2, ".")
 

@@ -126,6 +126,10 @@ func installPacks(clicontext *cli.Context) error {
 		getrpmch := make(chan string, totalpkg)
 		for i := 0; i <= len(res)-1; i++ {
 			for _, item := range res[i] {
+				if installed, _, _ := sqlquery.QueryInstalledPkg(destdir, item.Name, true); installed {
+					fmt.Printf("Name: %s-%s-%s is installed\n", item.Name, item.Version, item.Release)
+					continue
+				}
 				wg.Add(1)
 				go func(pkg sqlquery.ReqRes) {
 					defer wg.Done()
