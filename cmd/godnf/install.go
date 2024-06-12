@@ -37,6 +37,7 @@ func installPacks(clicontext *cli.Context) error {
 		dnflog.L.Debug("%d: %s\n", i+1, clicontext.Args().Get(i))
 		packs = append(packs, clicontext.Args().Get(i))
 	}
+
 	fmt.Println("Update RepoDate")
 	repoConfs, err := repodata.GetRepo()
 	if err != nil {
@@ -88,8 +89,11 @@ func installPacks(clicontext *cli.Context) error {
 	dnflog.L.Debug("dbPaths: ", dbpaths)
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.Debug)
 	for _, pack := range packs {
-		if installed, rpmpkg, _ := install.QueryInstalledPkg(destdir, pack); installed {
-			fmt.Printf("%s-%s-%s.%s is installed\n", rpmpkg.Name, rpmpkg.Version, rpmpkg.Release, rpmpkg.Arch)
+		if installed, rpmpkgs, _ := sqlquery.QueryInstalledPkg(destdir, pack, true); installed {
+			for _, rpmpkg := range rpmpkgs {
+				fmt.Printf("%s-%s-%s.%s is installed\n", rpmpkg.Name, rpmpkg.Version, rpmpkg.Release, rpmpkg.Arch)
+			}
+
 			continue
 		}
 
@@ -112,7 +116,7 @@ func installPacks(clicontext *cli.Context) error {
 				parts := strings.Split(trimpath, "/")
 
 				repoKey := parts[len(parts)-2]
-				fmt.Fprintln(w, item.Name, "\t", item.Arch, "\t", item.Version, "-", item.Release, "\t", repoKey)
+				fmt.Fprintln(w, item.Name, "\t", item.Arch, "\t", item.Version+"-"+item.Release, "\t", repoKey)
 				totalpkg++
 			}
 		}

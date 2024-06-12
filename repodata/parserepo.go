@@ -71,6 +71,9 @@ func GetRepo() (map[string]RepoConfig, error) {
 
 		// Iterate through the sections in the .repo file
 		for _, section := range cfg.Sections() {
+			if section.Name() == "DEFAULT" {
+				continue
+			}
 			// Parse the section into a RepoConfig struct
 			rc := RepoConfig{
 				Name:     section.Name(),
@@ -83,6 +86,7 @@ func GetRepo() (map[string]RepoConfig, error) {
 			rc.BaseURL = strings.Replace(rc.BaseURL, "$basearch", arch, 1)
 			if rc.Enabled {
 				repoConfigs[rc.Name] = rc
+
 			}
 		}
 
@@ -90,7 +94,7 @@ func GetRepo() (map[string]RepoConfig, error) {
 	})
 
 	for key, rc := range repoConfigs {
-		fmt.Printf("reponame:%s url:%s\n", key, rc.BaseURL)
+		fmt.Printf("%s url: %s\n", key, rc.BaseURL)
 		dnflog.L.Debug("key: ", key)
 		dnflog.L.Debug("name: ", rc.Name)
 		dnflog.L.Debug("BaseURL: ", rc.BaseURL)

@@ -124,7 +124,7 @@ func comparestring(v1, v2 string) int {
 // p1 > p2: 1
 // p1 < p2; -1
 // p1 = p2: 0
-func compVerRelease(p1, p2 ReqRes) int {
+func CompVerRelease(p1, p2 ReqRes) int {
 	if (comparestring(p1.Version, p2.Version) == 1) ||
 		((comparestring(p1.Version, p2.Version) == 0) && (comparestring(p1.Release, p2.Release) == 1)) {
 		return 1
@@ -189,21 +189,21 @@ func getRequirePkgname(req queryRes, arch, dbpath string) (res ReqRes, err error
 			maxP.Release = p2.Release
 		} else {
 			if needcomp == "" || needcomp == "GE" {
-				if compVerRelease(p2, maxP) != -1 {
+				if CompVerRelease(p2, maxP) != -1 {
 					lastestName = p2.Name
 					maxP.Epoch = p2.Epoch
 					maxP.Version = p2.Version
 					maxP.Release = p2.Release
 				}
 			} else if needcomp == "EQ" {
-				if compVerRelease(p2, maxP) == 0 {
+				if CompVerRelease(p2, maxP) == 0 {
 					lastestName = p2.Name
 					maxP.Epoch = p2.Epoch
 					maxP.Version = p2.Version
 					maxP.Release = p2.Release
 				}
 			} else {
-				if compVerRelease(p2, maxP) == -1 {
+				if CompVerRelease(p2, maxP) == -1 {
 					lastestName = p2.Name
 					maxP.Epoch = p2.Epoch
 					maxP.Version = p2.Version
@@ -241,21 +241,21 @@ func getRequirePkgname(req queryRes, arch, dbpath string) (res ReqRes, err error
 				maxP.Release = p2.Release
 			} else {
 				if needcomp == "" || needcomp == "GE" {
-					if compVerRelease(p2, maxP) != -1 {
+					if CompVerRelease(p2, maxP) != -1 {
 						lastestName = p2.Name
 						maxP.Epoch = p2.Epoch
 						maxP.Version = p2.Version
 						maxP.Release = p2.Release
 					}
 				} else if needcomp == "EQ" {
-					if compVerRelease(p2, maxP) == 0 {
+					if CompVerRelease(p2, maxP) == 0 {
 						lastestName = p2.Name
 						maxP.Epoch = p2.Epoch
 						maxP.Version = p2.Version
 						maxP.Release = p2.Release
 					}
 				} else {
-					if compVerRelease(p2, maxP) == -1 {
+					if CompVerRelease(p2, maxP) == -1 {
 						lastestName = p2.Name
 						maxP.Epoch = p2.Epoch
 						maxP.Version = p2.Version
@@ -384,7 +384,7 @@ func GetRequres(in string, arch string, dbpaths []string) ([]ReqRes, ReqRes, err
 				cur = c
 				reqinfo = r
 			} else {
-				if compVerRelease(c, cur) == 1 {
+				if CompVerRelease(c, cur) == 1 {
 					cur = c
 					reqinfo = r
 
@@ -406,7 +406,7 @@ func GetRequres(in string, arch string, dbpaths []string) ([]ReqRes, ReqRes, err
 				if maxpkg.Name == "" {
 					maxpkg = t
 				} else {
-					if compVerRelease(t, maxpkg) == 1 {
+					if CompVerRelease(t, maxpkg) == 1 {
 						maxpkg = t
 					}
 				}

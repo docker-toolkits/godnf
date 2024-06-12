@@ -27,6 +27,7 @@ func main() {
 
 	app.Commands = []cli.Command{
 		installCommand,
+		listCommand,
 	}
 
 	var debuglevel int

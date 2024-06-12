@@ -1,7 +1,6 @@
 package install
 
 import (
-	"database/sql"
 	"fmt"
 	"io"
 	"log"
@@ -220,86 +219,8 @@ func ExtractRPM(destdir string, name string) {
 	dnflog.L.Debug("New directory: %s\n", oldDir)
 }
 
-func RecordInstalledPkg(destdir string, rpmpkg sqlquery.ReqRes) error {
-
-	dbPath := fmt.Sprintf("%s/%s", destdir, "/var/lib/godnf/godnf_packages.db")
-	if dirName := filepath.Dir(dbPath); dirName != "" {
-		if err := os.MkdirAll(dirName, 0o755); err != nil {
-			log.Fatal(err)
-		}
-	}
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	createTableSQL := `CREATE TABLE IF NOT EXISTS packages (
-		"id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-		"name" TEXT,
-		"epoch" INTEGER,
-		"version" TEXT,
-		"release" TEXT,
-		"arch" TEXT
-	);`
-	_, err = db.Exec(createTableSQL)
-	if err != nil {
-		log.Fatalf("Error creating table: %v\n", err)
-	}
-
-	insertPackageSQL := `INSERT INTO packages (name, epoch, version, release, arch) VALUES (?, ?, ?, ?, ?)`
-	_, err = db.Exec(insertPackageSQL, rpmpkg.Name, rpmpkg.Epoch, rpmpkg.Version, rpmpkg.Release, rpmpkg.Arch)
-	if err != nil {
-		log.Fatalf("Error inserting data: %v\n", err)
-	}
-
-	return nil
-}
-
-func QueryInstalledPkg(destdir string, name string) (bool, sqlquery.ReqRes, error) {
-
-	dbPath := fmt.Sprintf("%s/%s", destdir, "/var/lib/godnf/godnf_packages.db")
-
-	_, err := os.Stat(dbPath)
-	if os.IsNotExist(err) {
-		return false, sqlquery.ReqRes{}, fmt.Errorf("Not exist db")
-	}
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	querySQL := `SELECT name, epoch, version, release, arch FROM packages WHERE name=?`
-	rows, err := db.Query(querySQL, name)
-	if err != nil {
-		log.Fatalf("Error querying data: %v\n", err)
-	}
-	defer rows.Close()
-	var rpmpkg sqlquery.ReqRes
-	for rows.Next() {
-		var name, epoch, version, release, arch string
-		err = rows.Scan(&name, &epoch, &version, &release, &arch)
-		if err != nil {
-			log.Fatalf("Error scanning row: %v\n", err)
-		}
-		dnflog.L.Debug("Name: %s, Epoch: %s, Version: %s, Release: %s\n", name, epoch, version, release)
-		rpmpkg.Name = name
-		rpmpkg.Version = version
-		rpmpkg.Release = release
-		rpmpkg.Arch = arch
-		return true, rpmpkg, nil
-	}
-
-	err = rows.Err()
-	if err != nil {
-		log.Fatalf("Error during row iteration: %v\n", err)
-	}
-	return false, sqlquery.ReqRes{}, fmt.Errorf("Not Found In db")
-}
-
 func InstallRPM(destdir string, rpmpkg sqlquery.ReqRes) {
-	if installed, _, _ := QueryInstalledPkg(destdir, rpmpkg.Name); installed {
+	if installed, _, _ := sqlquery.QueryInstalledPkg(destdir, rpmpkg.Name, true); installed {
 		fmt.Printf("Name: %s-%s-%s is installed\n", rpmpkg.Name, rpmpkg.Version, rpmpkg.Release)
 		return
 	}
@@ -317,5 +238,5 @@ func InstallRPM(destdir string, rpmpkg sqlquery.ReqRes) {
 	}
 	filepath := fmt.Sprintf("./%s/%s/packages/%s", "/var/cache/godnf/", repoKey, packfile)
 	ExtractRPM(destdir, filepath)
-	RecordInstalledPkg(destdir, rpmpkg)
+	sqlquery.RecordInstalledPkg(destdir, rpmpkg)
 }
