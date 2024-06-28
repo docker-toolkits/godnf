@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 )
 
 type LogLevel int
@@ -63,7 +64,13 @@ func (l *Logger) logMessage(level LogLevel, format string, v ...interface{}) {
 		case ERROR:
 			prefix = "ERROR"
 		}
-		l.logger.SetPrefix(fmt.Sprintf("[%s] ", prefix))
+		_, file, line, ok := runtime.Caller(2)
+		if ok {
+			l.logger.SetPrefix(fmt.Sprintf("[%s][%s][%d] ", prefix, file, line))
+		} else {
+			l.logger.SetPrefix(fmt.Sprintf("[%s] ", prefix))
+		}
+
 		if format == "" {
 			l.logger.Output(2, fmt.Sprint(v...))
 		} else {

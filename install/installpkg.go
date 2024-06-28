@@ -51,6 +51,7 @@ func moveAll(sourceDir, targetDir string) error {
 func isDirEmpty(dir string) (bool, error) {
 	f, err := os.Open(dir)
 	if err != nil {
+		dnflog.L.Error("Open failed", dir)
 		return false, err
 	}
 	defer f.Close()
@@ -87,6 +88,7 @@ func ExtractRPM(destdir string, name string) {
 	// Open a package file for reading
 	f, err := os.Open(name)
 	if err != nil {
+		dnflog.L.Error("Open failed", name)
 		log.Fatal(err)
 	}
 	defer f.Close()
@@ -193,8 +195,11 @@ func ExtractRPM(destdir string, name string) {
 			// Create and write the file
 			outFile, err := os.Create(hdr.Name)
 			if err != nil {
-				log.Fatal(err)
+				dnflog.L.Warn("can't write to ", hdr.Name)
+				continue
+				//log.Fatal(err)
 			}
+
 			if _, err := io.Copy(outFile, cpioReader); err != nil {
 				outFile.Close()
 				log.Fatal(err)
