@@ -168,7 +168,7 @@ func getRequirePkgname(req queryRes, arch, dbpath string) (res ReqRes, err error
 	defer db.Close()
 
 	//var res []ReqRes
-	query := fmt.Sprintf("SELECT p.Name,p.Epoch,p.Version,p.Release,p.Arch FROM packages p JOIN provides pr ON p.pkgKey = pr.pkgKey WHERE pr.Name='%s';", req.Name)
+	query := fmt.Sprintf("SELECT p.Name,p.Epoch,p.Version,p.Release,p.Arch FROM packages p JOIN provides pr ON p.pkgKey = pr.pkgKey WHERE pr.Name = '%s';", req.Name)
 	//fmt.Printf("query %s\n", query)
 	reqquery, err := db.Query(query)
 	if err != nil {
@@ -406,14 +406,24 @@ func GetRequres(in string, arch string, dbpaths []string) ([]ReqRes, ReqRes, err
 	var res []ReqRes
 	for _, item := range reqinfo {
 		var maxpkg ReqRes
-		for _, db := range dbpaths {
-			t, err := getRequirePkgname(item, arch, db)
-			if err == nil {
-				if maxpkg.Name == "" {
-					maxpkg = t
-				} else {
-					if CompVerRelease(t, maxpkg) == 1 {
+		//The same repo source has the highest priority
+		t, err := getRequirePkgname(item, arch, cur.DbPath)
+		if err == nil {
+			maxpkg = t
+		} else {
+			for _, db := range dbpaths {
+				if db == cur.DbPath {
+					continue
+				}
+
+				t, err := getRequirePkgname(item, arch, db)
+				if err == nil {
+					if maxpkg.Name == "" {
 						maxpkg = t
+					} else {
+						if CompVerRelease(t, maxpkg) == 1 {
+							maxpkg = t
+						}
 					}
 				}
 			}
@@ -423,7 +433,7 @@ func GetRequres(in string, arch string, dbpaths []string) ([]ReqRes, ReqRes, err
 		if maxpkg.Name == "" {
 			dnflog.L.Error("Not Such Package ", item)
 			log.Fatalf("Not Such Package: %v", item)
-			return nil, ReqRes{}, fmt.Errorf("Not Such Package ", item)
+			return nil, ReqRes{}, fmt.Errorf("not Such Package ", item)
 		}
 
 		if existed, _ := IsExisted(res, maxpkg); !existed {
