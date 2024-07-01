@@ -179,6 +179,7 @@ func getRequirePkgname(req queryRes, arch, dbpath string) (res ReqRes, err error
 	for reqquery.Next() {
 		var p2 ReqRes
 		err := reqquery.Scan(&p2.Name, &p2.Epoch, &p2.Version, &p2.Release, &qArch)
+		dnflog.L.Debug("From provides[%s] Query Package: Name: %s, Version: %s, Release %s\n", req.Name, p2.Name, p2.Version, p2.Release)
 		if err != nil {
 			log.Fatalf("Error scanning row reqquery: %v", err)
 		}
@@ -230,6 +231,7 @@ func getRequirePkgname(req queryRes, arch, dbpath string) (res ReqRes, err error
 		for filequery.Next() {
 			var p2 ReqRes
 			err := filequery.Scan(&p2.Name, &p2.Epoch, &p2.Version, &p2.Release, &qArch)
+			dnflog.L.Debug("From File [%s] Query Package: Name: %s, Version: %s, Release %s\n", req.Name, p2.Name, p2.Version, p2.Release)
 			if err != nil {
 				log.Fatalf("Error scanning row filequery: %v", err)
 			}
@@ -313,6 +315,7 @@ func getRequresInfo(in, arch, dbpath string) ([]queryRes, ReqRes, error) {
 		var pkgKey int
 		var Epoch, Version, Release string
 		err := packrows.Scan(&pkgKey, &Name, &Epoch, &qarch, &Version, &Release)
+		dnflog.L.Debug("From Provide[%s] Query Package: pkgKey:%d, Name: %s, Version: %s, Release %s\n", in, pkgKey, Name, Version, Release)
 		if err != nil {
 			log.Fatalf("Error scanning row packrows: %v", err)
 		}
@@ -340,7 +343,7 @@ func getRequresInfo(in, arch, dbpath string) ([]queryRes, ReqRes, error) {
 
 	// Don't find package in current db
 	if latestPkgKey == -1 {
-		return nil, ReqRes{}, fmt.Errorf("Not Found Package in db")
+		return nil, ReqRes{}, fmt.Errorf("not Found Package in db")
 	}
 	currentpkg.Name = Name
 	currentpkg.DbPath = dbpath
@@ -350,6 +353,7 @@ func getRequresInfo(in, arch, dbpath string) ([]queryRes, ReqRes, error) {
 	currentpkg.Release = max_release
 
 	//fmt.Printf("Max pkgKey: %d,  Version: %s, Release %s\n", latestPkgKey, max_version, max_release)
+	dnflog.L.Debug("Get[%s] Max Version pkgKey: %d,  Version: %s, Release %s\n", Name, latestPkgKey, max_version, max_release)
 	query = `SELECT Name,Flags,Epoch,Version,Release FROM requires WHERE pkgKey=?;`
 	reqrows, err := db.Query(query, latestPkgKey)
 	if err != nil {
@@ -361,6 +365,7 @@ func getRequresInfo(in, arch, dbpath string) ([]queryRes, ReqRes, error) {
 	for reqrows.Next() {
 		var req queryRes
 		err := reqrows.Scan(&req.Name, &req.Flags, &req.Epoch, &req.Version, &req.Release)
+		dnflog.L.Debug("Get[%s] Max Version pack requires: Name: %s, Version: %s, Release %s\n", Name, req.Name, req.Version, req.Release)
 		if err != nil {
 			log.Fatalf("Error scanning row reqrows: %v", err)
 		}
