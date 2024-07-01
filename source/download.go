@@ -133,10 +133,10 @@ func GetRpm(destdir string, repoConfs map[string]repodata.RepoConfig, pack sqlqu
 	trimpath := strings.TrimPrefix(pack.DbPath, destdir)
 	parts := strings.Split(trimpath, "/")
 	if len(parts) <= 2 {
-		return fmt.Errorf("Not Such Packages")
+		return fmt.Errorf("not Such Packages")
 	}
 	repoKey := parts[len(parts)-2]
-	if pack.Epoch == "" {
+	if pack.Epoch == "" || pack.Epoch == "0" {
 		packfile = fmt.Sprintf("%s-%s-%s.%s.rpm", pack.Name, pack.Version, pack.Release, pack.Arch)
 	} else {
 		packfile = fmt.Sprintf("%s-%s:%s-%s.%s.rpm", pack.Name, pack.Epoch, pack.Version, pack.Release, pack.Arch)

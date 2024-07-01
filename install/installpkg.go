@@ -236,7 +236,7 @@ func InstallRPM(destdir string, rpmpkg sqlquery.ReqRes) {
 
 	dnflog.L.Debug("Name: %s Version %s Release %s\n", rpmpkg.Name, rpmpkg.Version, rpmpkg.Release)
 	var packfile string
-	if rpmpkg.Epoch == "" {
+	if rpmpkg.Epoch == "" || rpmpkg.Epoch == "0" {
 		packfile = fmt.Sprintf("%s-%s-%s.%s.rpm", rpmpkg.Name, rpmpkg.Version, rpmpkg.Release, rpmpkg.Arch)
 	} else {
 		packfile = fmt.Sprintf("%s-%s:%s-%s.%s.rpm", rpmpkg.Name, rpmpkg.Epoch, rpmpkg.Version, rpmpkg.Release, rpmpkg.Arch)
